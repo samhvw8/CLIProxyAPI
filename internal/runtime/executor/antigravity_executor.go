@@ -291,6 +291,14 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	translated = applyPayloadConfigWithRoot(e.cfg, baseModel, "antigravity", "request", translated, originalTranslated, requestedModel)
 
+	// Check if translator overrode the model (e.g., web search → gemini-2.5-flash)
+	upstreamModel := baseModel
+	if translatedModel := gjson.GetBytes(translated, "model").String(); translatedModel != "" && translatedModel != baseModel {
+		upstreamModel = translatedModel
+		// Strip thinking config — it was computed for the original model and may be incompatible
+		translated, _ = sjson.DeleteBytes(translated, "request.generationConfig.thinkingConfig")
+	}
+
 	baseURLs := antigravityBaseURLFallbackOrder(auth)
 	httpClient := newProxyAwareHTTPClient(ctx, e.cfg, auth, 0)
 
@@ -303,7 +311,7 @@ attemptLoop:
 		var lastErr error
 
 		for idx, baseURL := range baseURLs {
-			httpReq, errReq := e.buildRequest(ctx, auth, token, baseModel, translated, true, opts.Alt, baseURL)
+			httpReq, errReq := e.buildRequest(ctx, auth, token, upstreamModel, translated, true, opts.Alt, baseURL)
 			if errReq != nil {
 				err = errReq
 				return resp, err
@@ -366,7 +374,7 @@ attemptLoop:
 					}
 					if attempt+1 < attempts {
 						delay := antigravityNoCapacityRetryDelay(attempt)
-						log.Debugf("antigravity executor: no capacity for model %s, retrying in %s (attempt %d/%d)", baseModel, delay, attempt+1, attempts)
+						log.Debugf("antigravity executor: no capacity for model %s, retrying in %s (attempt %d/%d)", upstreamModel, delay, attempt+1, attempts)
 						if errWait := antigravityWait(ctx, delay); errWait != nil {
 							return resp, errWait
 						}
@@ -683,6 +691,14 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	translated = applyPayloadConfigWithRoot(e.cfg, baseModel, "antigravity", "request", translated, originalTranslated, requestedModel)
 
+	// Check if translator overrode the model (e.g., web search → gemini-2.5-flash)
+	upstreamModel := baseModel
+	if translatedModel := gjson.GetBytes(translated, "model").String(); translatedModel != "" && translatedModel != baseModel {
+		upstreamModel = translatedModel
+		// Strip thinking config — it was computed for the original model and may be incompatible
+		translated, _ = sjson.DeleteBytes(translated, "request.generationConfig.thinkingConfig")
+	}
+
 	baseURLs := antigravityBaseURLFallbackOrder(auth)
 	httpClient := newProxyAwareHTTPClient(ctx, e.cfg, auth, 0)
 
@@ -695,7 +711,7 @@ attemptLoop:
 		var lastErr error
 
 		for idx, baseURL := range baseURLs {
-			httpReq, errReq := e.buildRequest(ctx, auth, token, baseModel, translated, true, opts.Alt, baseURL)
+			httpReq, errReq := e.buildRequest(ctx, auth, token, upstreamModel, translated, true, opts.Alt, baseURL)
 			if errReq != nil {
 				err = errReq
 				return nil, err
@@ -757,7 +773,7 @@ attemptLoop:
 					}
 					if attempt+1 < attempts {
 						delay := antigravityNoCapacityRetryDelay(attempt)
-						log.Debugf("antigravity executor: no capacity for model %s, retrying in %s (attempt %d/%d)", baseModel, delay, attempt+1, attempts)
+						log.Debugf("antigravity executor: no capacity for model %s, retrying in %s (attempt %d/%d)", upstreamModel, delay, attempt+1, attempts)
 						if errWait := antigravityWait(ctx, delay); errWait != nil {
 							return nil, errWait
 						}

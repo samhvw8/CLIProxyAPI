@@ -357,10 +357,7 @@ func ConvertClaudeRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 	// variants do not support grounding.
 	if hasWebSearch && toolDeclCount == 0 {
 		modelName = "gemini-2.5-flash"
-		if toolsJSON == "" {
-			toolsJSON = `[]`
-		}
-		toolsJSON, _ = sjson.SetRaw(toolsJSON, "-1", `{"googleSearch":{}}`)
+		toolsJSON = `[{"googleSearch":{}}]`
 	} else if hasWebSearch && toolDeclCount > 0 {
 		// Cannot mix tool types — skip googleSearch, keep function tools on original model
 		hasWebSearch = false
